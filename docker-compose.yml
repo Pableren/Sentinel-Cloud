@@ -1,0 +1,157 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio_datalake
+    ports:
+      - "9000:9000" # MinIO API
+      - "9001:9001" # MinIO Console
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    networks:
+      - default
+
+  python-api:
+    build:
+      context: ./src/python-api
+    container_name: python_api
+    ports:
+      - "8000:8000"
+    environment:
+      - MINIO_ENDPOINT=minio:9000  # Cambiado de minio_datalake a minio
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    depends_on:
+      - minio
+    volumes:
+      - ./src/python-api:/app
+    networks:
+      - default
+    # Mantiene el contenedor activo
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: spark_master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "18080:8080" # UI del Master
+      - "7077:7077" # Spark Master Port
+      - "15002:15002" # Spark Connect gRPC Port
+    # Uso de imagen oficial Apache Spark.
+    # Iniciamos Master en background y luego el Connect Server.
+    command: >
+      /bin/bash -c "
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --ip 0.0.0.0 --port 7077 --webui-port 8080 &
+      sleep 10 &&
+      /opt/spark/sbin/start-connect-server.sh --packages org.apache.spark:spark-connect_2.12:3.5.0 &&
+      tail -f /dev/null
+      "
+    networks:
+      - default
+    volumes:
+      - ./src/spark-jobs:/app/jobs
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark_worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+    depends_on:
+      - spark-master
+    volumes:
+      - ./src/spark-jobs:/app/jobs
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --webui-port 8081
+    networks:
+      - default
+
+  airflow-webserver:
+    build:
+      context: ./src/airflow
+    container_name: airflow_webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      # _PIP_ADDITIONAL_REQUIREMENTS removido porque ya está en el Dockerfile
+    volumes:
+      - ./src/airflow/dags:/opt/airflow/dags
+      - ./src/airflow/logs:/opt/airflow/logs
+      - ./src/airflow/plugins:/opt/airflow/plugins
+      - ./src/spark-jobs:/app/jobs
+      - minio_data:/data
+      - ./airflow.db:/opt/airflow/airflow.db
+    ports:
+      - "8081:8080"
+    command: webserver
+    networks:
+      - default
+
+  airflow-scheduler:
+    build:
+      context: ./src/airflow
+    container_name: airflow_scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      # _PIP_ADDITIONAL_REQUIREMENTS removido porque ya está en el Dockerfile
+    volumes:
+      - ./src/airflow/dags:/opt/airflow/dags
+      - ./src/airflow/logs:/opt/airflow/logs
+      - ./src/airflow/plugins:/opt/airflow/plugins
+      - ./src/spark-jobs:/app/jobs
+      - minio_data:/data
+      - ./airflow.db:/opt/airflow/airflow.db
+    command: scheduler
+    networks:
+      - default
+
+  airflow-init:
+    build:
+      context: ./src/airflow
+    container_name: airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate && \
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Pablo \
+          --lastname Admin \
+          --role Admin \
+          --email admin@example.com
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - ./airflow.db:/opt/airflow/airflow.db
+    networks:
+      - default
+
+networks:
+  default:
+    name: sentinel_net
+
+volumes:
+  minio_data:

@@ -1,0 +1,20 @@
+#archivos/
+#trayectorias/
+*.tmp
+
+# Ignorar carpetas generadas por Python
+__pycache__/
+
+# Ignorar datos locales (Volúmenes de Docker)
+#data/
+minio_data/
+
+# Ignorar base de datos de airflow
+airflow.db
+
+
+# Ignorar docs
+docs/
+
+# Ignorar AGENTS
+AGENTS.md

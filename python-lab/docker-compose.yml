@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  python-lab:
+    build: .
+    container_name: python-lab
+    volumes:
+      - .:/app
+    # Uses the default command from Dockerfile (python main.py)
+    # Uncomment the following to keep it running for exec usage:
+    # command: tail -f /dev/null
+
+
+

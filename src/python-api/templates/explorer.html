@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>File Explorer</h1>
+
+<nav class="breadcrumb">
+    <a href="/explorer">/</a>
+    {% if bucket %}
+    <span style="margin: 0 0.5rem">/</span> <a href="/explorer?bucket={{bucket}}">{{ bucket }}</a>
+    {% endif %}
+    {% if prefix %}
+    <span style="margin: 0 0.5rem">/</span> {{ prefix }}
+    {% endif %}
+</nav>
+
+{% if not bucket %}
+<h2>Buckets</h2>
+<ul class="file-list">
+    {% for b in buckets %}
+    <li class="file-item">
+        <span class="file-icon">🪣</span>
+        <span class="file-name"><a href="/explorer?bucket={{ b.name }}">{{ b.name }}</a></span>
+        <span class="file-meta">{{ b.creation_date.strftime('%Y-%m-%d') }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<h2>Contents of {{ bucket }}</h2>
+
+{% if prefix %}
+<a href="/explorer?bucket={{bucket}}" class="btn-back">← Back to Bucket</a>
+{% else %}
+<a href="/explorer" class="btn-back">← Back to Buckets</a>
+{% endif %}
+
+<ul class="file-list">
+    {% for obj in objects %}
+    <li class="file-item">
+        {% if obj.is_dir %}
+        <span class="file-icon">📂</span>
+        <span class="file-name"><a href="/explorer?bucket={{ bucket }}&prefix={{ obj.object_name }}">{{ obj.object_name
+                }}</a></span>
+        {% else %}
+        <span class="file-icon">📄</span>
+        <span class="file-name">
+            <a href="/explorer/view?bucket={{ bucket }}&filename={{ obj.object_name }}">{{ obj.object_name }}</a>
+        </span>
+        <span class="file-meta">{{ (obj.size / 1024)|round(2) }} KB | {{ obj.last_modified.strftime('%Y-%m-%d %H:%M')
+            }}</span>
+        {% endif %}
+    </li>
+    {% else %}
+    <li class="empty-state">No files found here.</li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
