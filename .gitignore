@@ -18,3 +18,38 @@ docs/
 
 # Ignorar AGENTS
 AGENTS.md
+
+# --- Logs de Sistemas (ELIMINAR SIEMPRE) ---
+*.log
+LOGS.txt
+logs-build.txt
+# Específico de Airflow
+src/airflow/logs/
+src/airflow/db/
+
+# --- Datos (Git no es un Data Lake) ---
+# Ignoramos cualquier cosa en carpetas 'data'
+**/data/*.csv
+**/data/*.ndjson
+**/data/*.parquet
+# Archivos específicos que vi en tu commit
+data/*.csv
+src/python-api/data/*.ndjson
+
+# --- Python & Entornos ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# --- OpenCode & Sesiones de IA ---
+# Si quieres un repo limpio para "cerrar" el proyecto, ignora las sesiones
+session-ses_*.md
+20260421-sesion_prd_creation.md
+
+# --- OS & Editores ---
+.DS_Store
+.vscode/
+.idea/
