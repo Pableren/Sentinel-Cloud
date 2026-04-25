@@ -59,10 +59,6 @@ El proyecto se despliega localmente utilizando **Docker** para simular un entorn
     *   Expone un endpoint REST (`POST /predict`) para recibir datos en tiempo real y devolver predicciones inmediatas.
     *   Simula el despliegue productivo de un modelo de ML.
 
-### 5. Análisis (Trino)
-*   **Rol:** Motor de consultas SQL distribuidas.
-*   **Función:** Permite realizar consultas SQL directamente sobre los archivos Parquet en el Data Lake sin necesidad de mover los datos.
-
 ---
 
 ## 🏗️ Arquitectura del Sistema

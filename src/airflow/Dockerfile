@@ -17,4 +17,5 @@ RUN pip install --no-cache-dir \
     "apache-airflow==2.7.1" \
     pyspark==3.5.0 \
     apache-airflow-providers-apache-spark \
-    apache-airflow-providers-amazon
+    apache-airflow-providers-amazon \
+    numpy==1.24.4
