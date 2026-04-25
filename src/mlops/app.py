@@ -1,50 +1,91 @@
-from fastapi import FastAPI, HTTPException
+import time
+import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from pydantic import BaseModel
-import os
-import uvicorn
+from pyspark.ml import PipelineModel
+from pyspark.sql import SparkSession
 
-# Initialize FastAPI app
-app = FastAPI(title="MLOps Prediction Service", version="1.0.0")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Define input data model
+ml_models = {}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing SparkSession...")
+    spark = SparkSession.builder \
+        .appName("MLOpsInference") \
+        .master("local[1]") \
+        .config("spark.ui.enabled", "false") \
+        .config("spark.executor.instances", "1") \
+        .config("spark.driver.memory", "512m") \
+        .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262") \
+        .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
+        .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
+        .config("spark.hadoop.fs.s3a.secret.key", "minioadmin") \
+        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
+        .getOrCreate()
+        
+    logger.info("Loading PipelineModel from MinIO...")
+    ml_models["lr_model"] = PipelineModel.load("s3a://models/lr_latency_model/")
+    ml_models["spark"] = spark
+    yield
+    spark.stop()
+
+app = FastAPI(lifespan=lifespan)
+
 class PredictionRequest(BaseModel):
-    feature1: float
-    feature2: float
-    # Add relevant features here
+    throughput_rpm: float
+    error_rate_percent: float
+    cpu_percent: float
+    memory_usage_percent: float
+    active_connections_count: float
 
 class PredictionResponse(BaseModel):
-    prediction: float
+    predicted_latency_p95_ms: float
     model_version: str
-
-# Global variable to hold the model
-model = None
-
-@app.on_event("startup")
-def load_model():
-    global model
-    # Simulate loading model from MinIO or local path
-    print("Loading model...")
-    # model = load_model_function() 
-    model = "dummy_model"
-    print("Model loaded successfully.")
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "model_loaded": model is not None}
+    latency_ms: float
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(request: PredictionRequest):
-    if not model:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+async def predict(request: PredictionRequest):
+    start_time = time.time()
     
-    # Simulate prediction logic
-    # prediction = model.predict([request.feature1, request.feature2])
-    dummy_prediction = (request.feature1 * 0.5) + (request.feature2 * 0.8)
+    spark = ml_models["spark"]
+    model = ml_models["lr_model"]
     
-    return {
-        "prediction": dummy_prediction,
-        "model_version": "v1.0-simulated"
-    }
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    data = [(
+        request.throughput_rpm,
+        request.error_rate_percent,
+        request.cpu_percent,
+        request.memory_usage_percent,
+        request.active_connections_count
+    )]
+    columns = [
+        "throughput_rpm", 
+        "error_rate_percent", 
+        "cpu_percent", 
+        "memory_usage_percent", 
+        "active_connections_count"
+    ]
+    df = spark.createDataFrame(data, columns)
+    
+    predictions = model.transform(df)
+    
+    pred_row = predictions.select("prediction").first()
+    predicted_latency = pred_row["prediction"] if pred_row else 0.0
+    
+    end_time = time.time()
+    latency_ms = (end_time - start_time) * 1000
+    model_version = "v1.0"
+    
+    logger.info(f"Prediction Request - Input Shape: (1, {len(columns)}), Prediction Latency: {latency_ms:.2f} ms, Model Version: {model_version}")
+    
+    return PredictionResponse(
+        predicted_latency_p95_ms=predicted_latency,
+        model_version=model_version,
+        latency_ms=latency_ms
+    )

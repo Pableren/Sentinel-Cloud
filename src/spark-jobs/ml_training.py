@@ -39,6 +39,7 @@ def train_model(spark):
         label_col = "latency_p95_ms"
         
         df = df.dropna(subset=feature_cols + [label_col])
+        df = df.sample(withReplacement=False, fraction=0.1, seed=42)
 
         # Asegurarse de que el df no esté vacío
         if df.rdd.isEmpty():

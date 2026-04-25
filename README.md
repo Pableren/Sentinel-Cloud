@@ -80,4 +80,26 @@ El flujo de datos sigue un patrón ETL + ML:
 - **Python 3.12+** (para scripts locales)
 
 ### Ejecución
-(Instrucciones pendientes de actualización tras la reestructuración de servicios)
+
+1. **Iniciar todos los servicios:**
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. **Acceder a las Interfaces de Usuario:**
+   - **MinIO Console:** [http://localhost:9001](http://localhost:9001) (User/Pass: `minioadmin` / `minioadmin`)
+   - **Airflow Web UI:** [http://localhost:8081](http://localhost:8081) (User/Pass: `admin` / `admin`)
+   - **Spark Master UI:** [http://localhost:18080](http://localhost:18080)
+   - **Inference API Docs (Swagger):** [http://localhost:8001/docs](http://localhost:8001/docs)
+
+3. **Ejecutar el Pipeline en Airflow:**
+   Ingresa a Airflow, busca el DAG `sentinel_training_pipeline`, quita la pausa (Unpause) y presiona "Trigger DAG". Esto iniciará el entrenamiento del modelo Spark y lo guardará en MinIO.
+
+4. **Validar el Modelo en Producción (Inferencia en Tiempo Real):**
+   Una vez que el modelo esté entrenado y el servicio `model-inference-api` esté corriendo, puedes simular una petición de inferencia:
+   ```bash
+   curl -X 'POST' 'http://localhost:8001/predict' \
+     -H 'Content-Type: application/json' \
+     -d '{"throughput_rpm": 3000, "error_rate_percent": 0.05, "cpu_percent": 45.0, "memory_usage_percent": 70.0, "active_connections_count": 150}'
+   ```
+   La API devolverá un JSON con la latencia predecida (`predicted_latency_p95_ms`), indicando que el modelo de Machine Learning fue cargado y ejecutado exitosamente.

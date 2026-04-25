@@ -149,6 +149,22 @@ services:
     networks:
       - default
 
+
+  model-inference-api:
+    build:
+      context: ./src/mlops
+    container_name: model_inference_api
+    ports:
+      - "8001:8000"
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    depends_on:
+      - minio
+    networks:
+      - default
+
 networks:
   default:
     name: sentinel_net
