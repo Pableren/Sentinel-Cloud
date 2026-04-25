@@ -103,3 +103,6 @@ El flujo de datos sigue un patrón ETL + ML:
      -d '{"throughput_rpm": 3000, "error_rate_percent": 0.05, "cpu_percent": 45.0, "memory_usage_percent": 70.0, "active_connections_count": 150}'
    ```
    La API devolverá un JSON con la latencia predecida (`predicted_latency_p95_ms`), indicando que el modelo de Machine Learning fue cargado y ejecutado exitosamente.
+
+## 📚 Documentación Avanzada
+- Para un análisis profundo del motor de procesamiento, consulta nuestra [Guía Técnica de Spark](docs/SPARK_EXPLAINED.md).
